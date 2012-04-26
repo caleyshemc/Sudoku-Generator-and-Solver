@@ -13,10 +13,6 @@ main:
 	la		$a0, Welcome
 	li		$v0, 4
 	syscall
-	li		$v0, 9		# 9 is the syscall to allocate heap memory for an array.  Specify how many bytes to allocate in $a0.
-	li		$a0, 324	# Allocate 324 bytes (81 words)
-	syscall
-	move	$s0, $v0	# So $s0 is the base address of the output array.
 	
 	li		$v0, 9
 	li		$a0, 324
@@ -25,7 +21,7 @@ main:
 	
 #####
 #	OK, the two arrays (input and output) are now initialized.  First, the user decides what he/she wants to do.
-#####
+#####Wr
 
 first_choice:
 
@@ -93,7 +89,12 @@ GetFirstValue:
 	blt $v0, 1000, GetFirstValue
 	bgt $v0, 99999, GetFirstValue
 	
-	move $t3, $v0
+	move $s7, $v0
+	
+	bne $s7, 12345, GetSecondValue	# check for an easter egg. if the user didn't enter an appropriate value, just move on.
+	la $a0, LuggageCode
+	li $v0, 4
+	syscall
 	
 GetSecondValue:
 	la $a0, AskSecondValue
@@ -103,20 +104,29 @@ GetSecondValue:
 	li $v0, 5
 	syscall
 	
-	blt $v0, 1000, GetSecondValue
+	move $t0, $v0	# temporarily move the second value to t0.  This will be overwritten later, but I'll be done with it by then.
+	
+	bne $v0, 1337, NoEggs
+	la $a0, NotLeet
+	li $v0, 4
+	syscall
+	
+	j Constants
+	
+	
+NoEggs:	blt $v0, 1000, GetSecondValue
 	bgt $v0, 99999, GetSecondValue
 		
 ####### These are all constants.
-
+Constants:
 	li $t9, 10000 	# the remainder will be divided by 10000 to get a number between 0 and 8
-	add $s7, $s7, $v0
+	add $s7, $s7, $t0
 	li $s4, 61	# store a in s4
 	li $s5, 3571	# store c in s5
 	li $s6, 90000	# store m in s6
 	
 ########
-
-	li $t7, 1000 	# because so far we've refrained from using s registers
+	li $t7, 1000 
 	
 GetDifficulty:
 	la $a0, AskDifficulty
@@ -126,7 +136,12 @@ GetDifficulty:
 	li $v0, 5
 	syscall
 	
-	move $s0, $v0
+	blt		$v0, 1, GetDifficulty
+	bgt		$v0, 9, GetDifficulty
+	
+	move $s0, $v0	# move the difficulty into s0
+	
+difficulty_end:
 
 	# TEST
 	b	generate_puzzle_2
@@ -361,10 +376,25 @@ generate_puzzle_2:
 	li		$t1, 1000
 	mul		$t0, $t0, $t1
 	
+	srl		$s3, $t0, 4
+	
+	la		$a0, Generating
+	li		$v0, 4
+	syscall
+	
 switch_loop:
 	# Loops through $t0 times, performs one switch per loop.
 	beqz	$t0, print_board
 	addi	$t0, $t0, -1			# decrement counter
+	
+	div		$t0, $s3
+	mfhi	$a0
+	bne		$a0, $zero, no_print_dot
+	
+	la		$a0, Dot
+	li		$v0, 4
+	syscall
+no_print_dot:
 	
 	# Generate random number from 0-9.
 	# This will be the type of switch to perform.
@@ -675,7 +705,7 @@ switch_cells:
 
 RandomNumberGenerator:
 		
-	#beq 	$t7, $zero, WriteZeroes	# Once we've completely generated the puzzle, then go through and write zeroes to appropriate locations.
+	#beq 	$t7, $zero, WriteZeroes	# Once we have completely generated the puzzle, then go through and write zeroes to appropriate locations.
 	mul 	$s7, $s7, $s4
 	add 	$s7, $s7, $s5
 	div 	$s7, $s6 
@@ -695,11 +725,11 @@ RandomNumberGenerator:
 	
 # generate a random number.  If that number is under the selected difficulty, write a zero to that location and move to the next number.  Otherwise, just move to the next number
 WriteZeroes:
-	beq $t0, 81, printboard
+	beq $t0, 81, Done
 	mul $s7, $s7, $s4
 	add $s7, $s7, $s5
 	div $s7, $s6 
-	mfhi $t3
+	mfhi $s7
 	add $t8, $s7, $zero
 	div $t8, $t9
 	mflo $t8
@@ -718,6 +748,16 @@ WriteAZero:
 	sw $zero, 0($t1)
 	addi $t1, $t1, 4
 	j WriteZeroes
+	
+Done:
+	jal		printboard
+	la		$a0, Continue
+	li		$v0, 4
+	syscall
+	li		$v0, 5
+	syscall
+	j		solve
+	
 
 ####################################
 
@@ -737,6 +777,11 @@ solve:
 ##	$t3:  Temporary value used to pass values between the arrays
 ######################################
 
+	li		$v0, 9		# 9 is the syscall to allocate heap memory for an array.  Specify how many bytes to allocate in $a0.
+	li		$a0, 324	# Allocate 324 bytes (81 words)
+	syscall
+	move	$s0, $v0	# So $s0 is the base address of the output array.
+	
 	la		$a0, Populating
 	li		$v0, 4
 	syscall
@@ -764,9 +809,12 @@ populate_output_array:
 	syscall
 	
 	move 	$t0, $s1			# Make $t0 the pointer to the beginning of the input array again.
-
-	move	$s2, $s0
-	jal		printboard		# Start by printing the input array (this may be redundant)
+	
+	la		$a0, Solving
+	li		$v0, 4
+	syscall
+	
+	li		$s4, 0
 	
 ###########  FUNCTION CALL:  Backtrack(0, 0)  ##########################
 
@@ -824,6 +872,7 @@ print_no_soln:
 ##	$t7:  Constant value of 8
 ##	$t8:  Constant value of 9
 ##	$t9:  Constant value of 10
+##	$s4:  Used to generate dots every now and then.
 ##	$v0:  Often a return value from input_value, sometimes used for syscalls (the two uses are disjoint)
 ######################################
 
@@ -908,12 +957,17 @@ i_loop:
 	add 	$t2, $s0, $t2 
 	sw 		$t0, 0($t2) 	# output[x][y] = $t0
 	
+	
+	addi	$s4, $s4, 1
+	bne		$s4, 100, nodot
 	# Output a dot to let the user know that something is happening.
 	move	$t6, $a0
 	la		$a0, Dot
 	li		$v0, 4
 	syscall
 	move	$a0, $t6
+	li		$s4, 0
+nodot:
 	
 	# If (x = 8 && y = 8) return 1, otherwise go to the different else cases to continue to the next cell.
 	# We use De Morgans Law to check the equality condition.  $t7 is 8.
@@ -1423,6 +1477,10 @@ set_to_zero:
 	jr 		$ra
 	
 end:
+	la		$a0, ProgramDone
+	li		$v0, 4
+	syscall
+	
 	li		$v0, 10
 	syscall
 		
@@ -1439,6 +1497,9 @@ NewLine:	.asciiz "\n"
 Space:		.asciiz " "
 Invalid:	.asciiz "Invalid Input"
 Underscore:	.asciiz "_"
+Solving:	.asciiz "Solving"
+Generating:	.asciiz "Generating"
+ProgramDone:.asciiz "\nDone"
 First:		.asciiz "\nPlease choose an option:\n1:  Solve a Sudoku Puzzle\n2:  Generate a Sudoku Puzzle\nEnter choice: "
 starter_board:	
 	.word	1, 2, 3, 4, 5, 6, 7, 8, 9, 4, 5, 6, 7, 8, 9, 1, 2, 3, 7, 8, 9, 1, 2, 3, 4, 5, 6, 2, 3, 4, 5, 6, 7, 8, 9, 1, 5, 6, 7, 8, 9, 1, 2, 3, 4, 8, 9, 1, 2, 3, 4, 5, 6, 7, 3, 4, 5, 6, 7, 8, 9, 1, 2, 6, 7, 8, 9, 1, 2, 3, 4, 5, 9, 1, 2, 3, 4, 5, 6, 7, 8
@@ -1448,6 +1509,11 @@ FirstPuzzle:
 AskFirstValue:
 	.asciiz "Enter a random value between 1000 and 99999\n"
 AskSecondValue:
-	.asciiz "Enter another number between 1000 and 99999.  These will be used to seed the random number generator.\n"
+	.asciiz "Enter another number between 1000 and 99999.  These will be used to seed the random number generator, so try not to enter the same two numbers you did prior.\n"
 AskDifficulty:
-	.asciiz "Enter a value between 1 and 9.  This will determine how hard the final puzzle is.  So no pressure or anything.  (Numbers under 1 will return a solved board; anything above 9 will return a blank board)\n"
+	.asciiz "Enter a value between 1 and 8.  This will determine how hard the final puzzle is.  Enter 9 for a blank board.\n"
+Continue:	.asciiz  "\nPress Enter to solve this puzzle"
+LuggageCode:
+	.asciiz "Is that the combination on your luggage?\n"
+NotLeet:
+	.asciiz "If you have to proclaim your 1337ness, how 1337 are you really?\n"
