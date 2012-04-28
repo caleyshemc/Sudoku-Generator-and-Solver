@@ -1513,7 +1513,3 @@ AskSecondValue:
 AskDifficulty:
 	.asciiz "\nEnter a value between 1 and 8.  This will determine how hard the final puzzle is.  Enter 9 for a blank board.\n"
 Continue:	.asciiz  "\nPress Enter to solve this puzzle"
-LuggageCode:
-	.asciiz "Is that the combination on your luggage?\n"
-NotLeet:
-	.asciiz "If you have to proclaim your 1337ness, how 1337 are you really?\n"
